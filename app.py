@@ -7,13 +7,10 @@ from datetime import datetime
 import os
 from typing import List, Dict, Any
 import io
-
-# Importaciones para RAG con Claude
-from sentence_transformers import SentenceTransformer
-import faiss
-import anthropic
-import json
 import re
+
+# Importaciones para Claude
+import anthropic
 
 # Configuración de la página
 st.set_page_config(
@@ -153,7 +150,7 @@ def load_weo_data():
     return weo_raw_data
 
 class EcuadorWEOProcessor:
-    """Procesador de datos WEO de Ecuador del FMI"""
+    """Procesador simplificado de datos WEO de Ecuador del FMI"""
     
     def __init__(self, weo_data_text: str):
         self.raw_data = weo_data_text
@@ -285,322 +282,197 @@ class EcuadorWEOProcessor:
         
         return results
 
-
-class EcuadorRAGSystem:
-    """Sistema RAG avanzado para datos económicos de Ecuador usando Claude"""
+class EcuadorSimpleAssistant:
+    """Asistente simplificado para datos económicos de Ecuador usando Claude"""
     
     def __init__(self, weo_processor: EcuadorWEOProcessor):
         self.weo_processor = weo_processor
-        self.embeddings_model = None
-        self.vector_store = None
-        self.knowledge_base = []
-        self.index = None
         self.claude_client = None
-        self.setup_system()
+        self.setup_claude()
     
-    def setup_system(self):
-        """Inicializar el sistema RAG con Claude"""
+    def setup_claude(self):
+        """Configurar Claude AI"""
         try:
-            # Cargar modelo de embeddings
-            with st.spinner('Cargando modelo de embeddings...'):
-                self.embeddings_model = SentenceTransformer('all-MiniLM-L6-v2')
-            
-            # Configurar Claude
             api_key = os.getenv('ANTHROPIC_API_KEY') or st.secrets.get('ANTHROPIC_API_KEY')
             if api_key:
                 self.claude_client = anthropic.Anthropic(api_key=api_key)
-            
-            # Crear base de conocimiento
-            self.create_knowledge_base()
-            self.create_vector_store()
-            
-        except Exception as e:
-            st.error(f"Error inicializando RAG: {e}")
-    
-    def create_knowledge_base(self):
-        """Crear base de conocimiento rica con todos los datos WEO"""
-        
-        # Procesar cada indicador para crear documentos
-        for indicator_code, indicator_data in self.weo_processor.processed_data.items():
-            info = indicator_data['info']
-            data = indicator_data['data']
-            stats = indicator_data['stats']
-            
-            # Crear documento detallado para cada indicador
-            recent_years = sorted(data.keys(), reverse=True)[:5]  # Últimos 5 años
-            recent_data_text = ", ".join([f"{year}: {data[year]:.2f}" for year in recent_years])
-            
-            # Análisis de tendencia
-            if len(recent_years) >= 2:
-                recent_trend = data[recent_years[0]] - data[recent_years[-1]]
-                trend_text = "creciente" if recent_trend > 0 else "decreciente" if recent_trend < 0 else "estable"
             else:
-                trend_text = "datos limitados"
-            
-            # Contexto histórico
-            historical_context = ""
-            if len(data) >= 10:
-                decades_data = {}
-                for year, value in data.items():
-                    decade = (year // 10) * 10
-                    if decade not in decades_data:
-                        decades_data[decade] = []
-                    decades_data[decade].append(value)
-                
-                for decade, values in decades_data.items():
-                    if len(values) >= 3:
-                        avg_value = np.mean(values)
-                        historical_context += f"Década {decade}s: promedio {avg_value:.2f}. "
-            
-            document_text = f"""
-            INDICADOR ECONÓMICO: {info['name']} (Código: {indicator_code})
-            
-            DESCRIPCIÓN: {info['description']}
-            UNIDADES: {info['units']}
-            ESCALA: {info['scale']}
-            
-            DATOS RECIENTES ({recent_years[0]}-{recent_years[-1]}): {recent_data_text}
-            TENDENCIA RECIENTE: {trend_text}
-            
-            ESTADÍSTICAS HISTÓRICAS:
-            - Período total: {stats['first_year']}-{stats['last_year']} ({stats['data_points']} observaciones)
-            - Valor actual: {stats['latest_value']:.2f} {info['units']}
-            - Valor mínimo histórico: {stats['min_value']:.2f}
-            - Valor máximo histórico: {stats['max_value']:.2f}
-            - Promedio histórico: {stats['mean_value']:.2f}
-            - Volatilidad (desv. estándar): {stats['std_value']:.2f}
-            
-            CONTEXTO HISTÓRICO: {historical_context}
-            
-            NOTAS TÉCNICAS: {info['notes'][:500]}...
-            """
-            
-            self.knowledge_base.append({
-                'text': document_text,
-                'metadata': {
-                    'indicator_code': indicator_code,
-                    'indicator_name': info['name'],
-                    'category': self.categorize_indicator(indicator_code),
-                    'latest_year': stats['last_year'],
-                    'latest_value': stats['latest_value'],
-                    'data_points': stats['data_points']
-                }
-            })
-        
-        # Agregar contexto económico general de Ecuador
-        ecuador_context = """
-        CONTEXTO ECONÓMICO GENERAL DE ECUADOR
-        
-        Ecuador es una economía dolarizada desde enero del año 2000, cuando adoptó el dólar estadounidense como moneda oficial. 
-        Esta decisión fue tomada en respuesta a una severa crisis económica y financiera a finales de los años 90.
-        
-        CARACTERÍSTICAS ESTRUCTURALES:
-        - Economía dolarizada: no tiene política monetaria independiente
-        - Exportador de petróleo: los ingresos petroleros son cruciales para las finanzas públicas
-        - Exportador de productos agrícolas: banano, camarón, cacao, flores
-        - Economía de ingresos medios altos según clasificación del Banco Mundial
-        - Miembro de la Organización de Países Exportadores de Petróleo (OPEC)
-        
-        DESAFÍOS ECONÓMICOS PRINCIPALES:
-        - Dependencia de exportaciones de productos primarios
-        - Vulnerabilidad a shocks externos (precios de commodities, desastres naturales)
-        - Necesidad de diversificación económica
-        - Sostenibilidad fiscal en el largo plazo
-        - Competitividad externa limitada por dolarización
-        
-        FORTALEZAS:
-        - Estabilidad monetaria desde la dolarización
-        - Ubicación geográfica estratégica
-        - Biodiversidad y potencial turístico
-        - Mano de obra calificada en sectores específicos
-        
-        PERÍODOS ECONÓMICOS RELEVANTES:
-        - 1999-2000: Crisis económica y bancaria, adopción del dólar
-        - 2007-2017: Boom de commodities y expansión del gasto público
-        - 2020: Impacto severo de la pandemia COVID-19
-        - 2021-presente: Proceso de recuperación económica gradual
-        """
-        
-        self.knowledge_base.append({
-            'text': ecuador_context,
-            'metadata': {
-                'type': 'general_context',
-                'category': 'overview'
-            }
-        })
+                st.warning("⚠️ Claude API key no encontrada. Funcionará con respuestas básicas.")
+        except Exception as e:
+            st.error(f"Error configurando Claude: {e}")
     
-    def categorize_indicator(self, indicator_code: str) -> str:
-        """Categorizar indicadores por tema económico"""
-        categories = {
-            'gdp': ['NGDP', 'NGDP_R', 'NGDP_RPCH', 'NGDPD', 'PPPGDP', 'NGDP_D', 'NGAP_NPGDP'],
-            'gdp_per_capita': ['NGDPRPC', 'NGDPRPPPPC', 'NGDPPC', 'NGDPDPC', 'PPPPC'],
-            'international': ['PPPSH', 'PPPEX', 'BCA', 'BCA_NGDPD'],
-            'investment_savings': ['NID_NGDP', 'NGSD_NGDP'],
-            'inflation': ['PCPI', 'PCPIPCH', 'PCPIE', 'PCPIEPCH'],
-            'trade': ['TM_RPCH', 'TMG_RPCH', 'TX_RPCH', 'TXG_RPCH'],
-            'labor': ['LUR', 'LE', 'LP'],
-            'fiscal': ['GGR', 'GGR_NGDP', 'GGX', 'GGX_NGDP', 'GGXCNL', 'GGXCNL_NGDP', 
-                      'GGSB', 'GGSB_NPGDP', 'GGXONLB', 'GGXONLB_NGDP'],
-            'debt': ['GGXWDN', 'GGXWDN_NGDP', 'GGXWDG', 'GGXWDG_NGDP'],
-            'other': ['NGDP_FY']
+    def search_relevant_indicators(self, query: str, max_results: int = 3) -> List[Dict]:
+        """Buscar indicadores relevantes basado en palabras clave"""
+        query_lower = query.lower()
+        
+        # Mapeo de palabras clave a códigos de indicadores
+        keyword_mapping = {
+            'pib': ['NGDP_RPCH', 'NGDP', 'NGDPD', 'NGDPRPC'],
+            'gdp': ['NGDP_RPCH', 'NGDP', 'NGDPD', 'NGDPRPC'],
+            'crecimiento': ['NGDP_RPCH'],
+            'inflacion': ['PCPIPCH', 'PCPI'],
+            'inflation': ['PCPIPCH', 'PCPI'],
+            'desempleo': ['LUR'],
+            'unemployment': ['LUR'],
+            'deuda': ['GGXWDG_NGDP', 'GGXWDG'],
+            'debt': ['GGXWDG_NGDP', 'GGXWDG'],
+            'fiscal': ['GGR_NGDP', 'GGX_NGDP', 'GGXCNL_NGDP'],
+            'government': ['GGR_NGDP', 'GGX_NGDP', 'GGXCNL_NGDP'],
+            'cuenta corriente': ['BCA_NGDPD', 'BCA'],
+            'current account': ['BCA_NGDPD', 'BCA'],
+            'comercio': ['TX_RPCH', 'TM_RPCH'],
+            'trade': ['TX_RPCH', 'TM_RPCH'],
+            'exportaciones': ['TX_RPCH'],
+            'exports': ['TX_RPCH'],
+            'importaciones': ['TM_RPCH'],
+            'imports': ['TM_RPCH'],
+            'poblacion': ['LP'],
+            'population': ['LP'],
+            'per capita': ['NGDPRPC', 'NGDPDPC'],
+            'per cápita': ['NGDPRPC', 'NGDPDPC']
         }
         
-        for category, codes in categories.items():
-            if indicator_code in codes:
-                return category
-        return 'other'
+        # Encontrar códigos relevantes
+        relevant_codes = set()
+        for keyword, codes in keyword_mapping.items():
+            if keyword in query_lower:
+                relevant_codes.update(codes)
+        
+        # Si no hay coincidencias específicas, buscar en nombres de indicadores
+        if not relevant_codes:
+            search_results = self.weo_processor.search_indicators(query)
+            relevant_codes = [r['code'] for r in search_results[:max_results]]
+        
+        # Obtener datos de los indicadores relevantes
+        relevant_data = []
+        for code in list(relevant_codes)[:max_results]:
+            if code in self.weo_processor.processed_data:
+                indicator_data = self.weo_processor.processed_data[code]
+                relevant_data.append({
+                    'code': code,
+                    'info': indicator_data['info'],
+                    'stats': indicator_data['stats'],
+                    'data': indicator_data['data']
+                })
+        
+        return relevant_data
     
-    def create_vector_store(self):
-        """Crear almacén vectorial con FAISS"""
-        try:
-            if not self.knowledge_base:
-                st.error("No hay base de conocimiento para vectorizar")
-                return
-            
-            # Extraer textos para embeddings
-            texts = [doc['text'] for doc in self.knowledge_base]
-            
-            with st.spinner('Generando embeddings vectoriales...'):
-                # Generar embeddings
-                embeddings = self.embeddings_model.encode(texts, show_progress_bar=True)
-            
-            # Crear índice FAISS
-            dimension = embeddings.shape[1]
-            self.index = faiss.IndexFlatIP(dimension)  # Inner Product para cosine similarity
-            
-            # Normalizar embeddings para cosine similarity
-            faiss.normalize_L2(embeddings)
-            self.index.add(embeddings.astype(np.float32))
-            
-            st.success(f"✅ Vector store creado con {len(texts)} documentos")
-            
-        except Exception as e:
-            st.error(f"Error creando vector store: {e}")
+    def generate_response(self, query: str) -> str:
+        """Generar respuesta usando Claude o fallback"""
+        # Buscar indicadores relevantes
+        relevant_indicators = self.search_relevant_indicators(query)
+        
+        if self.claude_client and relevant_indicators:
+            return self.generate_claude_response(query, relevant_indicators)
+        else:
+            return self.generate_fallback_response(query, relevant_indicators)
     
-    def retrieve_relevant_docs(self, query: str, k: int = 5) -> List[Dict]:
-        """Recuperar documentos relevantes usando búsqueda semántica"""
-        try:
-            if not self.index:
-                return []
-            
-            # Generar embedding de la consulta
-            query_embedding = self.embeddings_model.encode([query])
-            faiss.normalize_L2(query_embedding)
-            
-            # Buscar documentos similares
-            scores, indices = self.index.search(query_embedding.astype(np.float32), k)
-            
-            # Retornar documentos relevantes
-            relevant_docs = []
-            for i, (score, idx) in enumerate(zip(scores[0], indices[0])):
-                if idx < len(self.knowledge_base) and score > 0.1:  # Umbral de relevancia
-                    doc = self.knowledge_base[idx].copy()
-                    doc['relevance_score'] = float(score)
-                    doc['rank'] = i + 1
-                    relevant_docs.append(doc)
-            
-            return relevant_docs
-            
-        except Exception as e:
-            st.error(f"Error en retrieval: {e}")
-            return []
-    
-    def generate_response_with_claude(self, query: str, relevant_docs: List[Dict]) -> str:
+    def generate_claude_response(self, query: str, relevant_indicators: List[Dict]) -> str:
         """Generar respuesta usando Claude API"""
-        
-        if not self.claude_client:
-            return self.generate_fallback_response(query, relevant_docs)
-        
         try:
-            # Construir contexto con documentos relevantes
-            context = ""
-            for i, doc in enumerate(relevant_docs[:3]):  # Top 3 documentos
-                context += f"\n--- DOCUMENTO {i+1} (Relevancia: {doc['relevance_score']:.3f}) ---\n"
-                context += doc['text'][:1500] + "...\n"  # Limitar longitud
+            # Construir contexto con indicadores relevantes
+            context = "DATOS ECONÓMICOS DE ECUADOR (FMI World Economic Outlook):\n\n"
             
-            # Crear prompt especializado para economía ecuatoriana
-            prompt = f"""Eres un experto economista especializado en Ecuador con acceso a datos oficiales del FMI. 
-Tu tarea es responder preguntas sobre la economía ecuatoriana basándote únicamente en la información proporcionada.
+            for indicator in relevant_indicators:
+                info = indicator['info']
+                stats = indicator['stats']
+                data = indicator['data']
+                
+                # Obtener datos recientes
+                recent_years = sorted(data.keys(), reverse=True)[:5]
+                recent_data = {year: data[year] for year in recent_years}
+                
+                context += f"""
+INDICADOR: {info['name']} ({indicator['code']})
+- Descripción: {info['description'][:200]}...
+- Unidades: {info['units']}
+- Valor actual ({stats['last_year']}): {stats['latest_value']:.2f}
+- Promedio histórico: {stats['mean_value']:.2f}
+- Datos recientes: {recent_data}
 
-CONTEXTO DE DATOS DISPONIBLES:
+"""
+            
+            prompt = f"""Eres un economista experto especializado en Ecuador. Responde la siguiente pregunta usando únicamente los datos proporcionados.
+
+CONTEXTO:
 {context}
 
-PREGUNTA DEL USUARIO: {query}
+PREGUNTA: {query}
 
 INSTRUCCIONES:
 1. Responde de manera profesional y precisa
-2. Usa datos específicos con cifras cuando sea relevante
-3. Explica las tendencias y contexto histórico cuando sea apropiado
-4. Si la pregunta requiere comparaciones temporales, menciona años específicos
-5. Mantén un tono informativo pero accesible
-6. Si no tienes información suficiente, indícalo claramente
-7. Incluye interpretaciones económicas cuando sea relevante
-
-FORMATO DE RESPUESTA:
-- Comienza con un resumen directo
-- Incluye datos específicos con años y cifras
-- Proporciona contexto e interpretación
-- Termina con implicaciones o outlook si es relevante
+2. Usa datos específicos con cifras y años
+3. Explica tendencias cuando sea relevante
+4. Mantén un tono informativo pero accesible
+5. Si no tienes información suficiente, indícalo claramente
 
 RESPUESTA:"""
 
-            # Llamar a Claude API
             response = self.claude_client.messages.create(
                 model="claude-3-5-sonnet-20241022",
-                max_tokens=1500,
+                max_tokens=1000,
                 temperature=0.3,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                messages=[{"role": "user", "content": prompt}]
             )
             
             return response.content[0].text
             
         except Exception as e:
             st.warning(f"Error con Claude API: {e}")
-            return self.generate_fallback_response(query, relevant_docs)
+            return self.generate_fallback_response(query, relevant_indicators)
     
-    def generate_fallback_response(self, query: str, relevant_docs: List[Dict]) -> str:
-        """Respuesta de fallback usando reglas cuando Claude no está disponible"""
-        
-        if not relevant_docs:
-            return "No encontré información específica para responder tu consulta. Puedes preguntarme sobre PIB, inflación, desempleo, deuda pública, comercio exterior, o cualquier otro indicador económico de Ecuador."
-        
-        # Usar el documento más relevante
-        top_doc = relevant_docs[0]
-        
-        # Extraer información clave del metadata
-        if 'indicator_code' in top_doc['metadata']:
-            code = top_doc['metadata']['indicator_code']
-            name = top_doc['metadata']['indicator_name']
-            latest_value = top_doc['metadata']['latest_value']
-            latest_year = top_doc['metadata']['latest_year']
-            category = top_doc['metadata']['category']
-            
-            return f"""📊 **{name}** ({code})
+    def generate_fallback_response(self, query: str, relevant_indicators: List[Dict]) -> str:
+        """Respuesta de fallback cuando Claude no está disponible"""
+        if not relevant_indicators:
+            return """🔍 **No encontré información específica para tu consulta.**
 
-**Valor más reciente ({latest_year}):** {latest_value:.2f}
+Puedes preguntarme sobre:
+- **PIB y crecimiento económico**
+- **Inflación y precios**
+- **Desempleo y mercado laboral**
+- **Deuda pública y finanzas fiscales**
+- **Comercio exterior**
+- **Población y demografía**
 
-**Información relevante:**
-{top_doc['text'][:800]}...
-
-*Categoría: {category.replace('_', ' ').title()}*
-*Fuente: FMI World Economic Outlook*
-"""
+*Datos fuente: FMI World Economic Outlook*"""
+        
+        # Usar el primer indicador más relevante
+        indicator = relevant_indicators[0]
+        info = indicator['info']
+        stats = indicator['stats']
+        data = indicator['data']
+        
+        # Generar respuesta básica
+        recent_years = sorted(data.keys(), reverse=True)[:3]
+        recent_data_text = ", ".join([f"{year}: {data[year]:.2f}" for year in recent_years])
+        
+        # Análisis de tendencia simple
+        if len(recent_years) >= 2:
+            change = data[recent_years[0]] - data[recent_years[1]]
+            trend = "📈 creciente" if change > 0 else "📉 decreciente" if change < 0 else "→ estable"
         else:
-            return f"""🔍 **Información encontrada:**
+            trend = "datos limitados"
+        
+        return f"""📊 **{info['name']}** (`{indicator['code']}`)
 
-{top_doc['text'][:1000]}...
+**Valor actual ({stats['last_year']}):** {stats['latest_value']:.2f} {info['units']}
 
-*Fuente: FMI World Economic Outlook*
-"""
+**Datos recientes:** {recent_data_text}
+**Tendencia:** {trend}
+
+**Estadísticas históricas:**
+- Período: {stats['first_year']}-{stats['last_year']} ({stats['data_points']} observaciones)
+- Promedio histórico: {stats['mean_value']:.2f}
+- Máximo histórico: {stats['max_value']:.2f}
+- Mínimo histórico: {stats['min_value']:.2f}
+
+**Descripción:** {info['description'][:300]}...
+
+*Fuente: FMI World Economic Outlook*"""
 
 @st.cache_resource
-def load_rag_system():
-    """Cargar sistema RAG con datos reales del WEO"""
+def load_system():
+    """Cargar sistema simplificado"""
     try:
         # Cargar datos WEO
         weo_data = load_weo_data()
@@ -608,10 +480,10 @@ def load_rag_system():
         # Procesar datos
         weo_processor = EcuadorWEOProcessor(weo_data)
         
-        # Crear sistema RAG
-        rag_system = EcuadorRAGSystem(weo_processor)
+        # Crear asistente
+        assistant = EcuadorSimpleAssistant(weo_processor)
         
-        return rag_system, weo_processor
+        return assistant, weo_processor
         
     except Exception as e:
         st.error(f"Error cargando sistema: {e}")
@@ -622,7 +494,7 @@ def create_visualization(indicator_code: str, weo_processor: EcuadorWEOProcessor
     try:
         data = weo_processor.get_indicator_data(indicator_code, start_year, end_year)
         if not data or not data['data']:
-            return None
+            return None, None
         
         years = list(data['data'].keys())
         values = list(data['data'].values())
@@ -661,14 +533,14 @@ def main():
     st.markdown("""
     <div class="main-header">
         <h1>🇪🇨 Ecuador Economic Data Assistant</h1>
-        <p>Asistente inteligente con datos oficiales del FMI usando RAG y Claude AI</p>
+        <p>Asistente inteligente con datos oficiales del FMI usando Claude AI</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Cargar sistema RAG
-    rag_system, weo_processor = load_rag_system()
+    # Cargar sistema
+    assistant, weo_processor = load_system()
     
-    if not rag_system or not weo_processor:
+    if not assistant or not weo_processor:
         st.error("No se pudo cargar el sistema. Por favor, recarga la página.")
         return
     
@@ -722,6 +594,7 @@ def main():
             <p><strong>Fuente:</strong> FMI World Economic Outlook</p>
             <p><strong>Última actualización:</strong> Octubre 2024</p>
             <p><strong>Total indicadores:</strong> 40+</p>
+            <p><strong>Sistema:</strong> Simplificado</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -750,12 +623,8 @@ def main():
             # Generar respuesta
             with st.chat_message("assistant"):
                 with st.spinner("Analizando datos económicos..."):
-                    # Buscar documentos relevantes
-                    relevant_docs = rag_system.retrieve_relevant_docs(prompt)
-                    
-                    # Generar respuesta con Claude
-                    response = rag_system.generate_response_with_claude(prompt, relevant_docs)
-                    
+                    # Generar respuesta
+                    response = assistant.generate_response(prompt)
                     st.markdown(response)
                     
                     # Agregar respuesta al historial
@@ -816,9 +685,18 @@ def main():
         ]
         
         for query in example_queries:
-            if st.button(query, key=f"example_{query[:10]}"):
+            if st.button(query, key=f"example_{query[:10]}", use_container_width=True):
                 st.session_state.messages.append({"role": "user", "content": query})
                 st.rerun()
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align: center; color: #666;">
+        <p>🇪🇨 <strong>Ecuador Economic Data Assistant</strong> | Datos oficiales del FMI | Powered by Claude AI</p>
+        <p><small>Última actualización: Octubre 2024 | Versión simplificada para máxima compatibilidad</small></p>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
