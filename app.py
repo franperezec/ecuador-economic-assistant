@@ -265,7 +265,7 @@ class EcuadorWEOProcessor:
         return self.processed_data[indicator_code]
 
 class EcuadorAdvancedAssistant:
-    """Asistente avanzado para datos económicos de Ecuador usando Claude"""
+    """Asistente avanzado para datos económicos de Ecuador"""
     
     def __init__(self, weo_processor: EcuadorWEOProcessor):
         self.weo_processor = weo_processor
@@ -394,7 +394,7 @@ ESTADÍSTICAS GENERALES:
 
 """
             
-            prompt = f"""Eres un economista senior especializado en Ecuador con acceso COMPLETO a 45 años de datos históricos (1980-2030). 
+            prompt = f"""Eres un economista senior especializado en Ecuador con acceso COMPLETO a 50 años de datos históricos (1980-2030, los datos de 2024 a 2030 son previsiones). 
 
 CONTEXTO HISTÓRICO DISPONIBLE:
 {context}
@@ -402,7 +402,7 @@ CONTEXTO HISTÓRICO DISPONIBLE:
 PREGUNTA DEL USUARIO: {query}
 
 INSTRUCCIONES ESPECIALIZADAS:
-1. Analiza TODA la serie histórica disponible (1980-2030)
+1. Analiza TODA la serie histórica disponible (1980-2030), los datos de 2024 a 2030 son previsiones
 2. Identifica períodos económicos clave (crisis 1999, dolarización 2000, boom commodities, etc.)
 3. Proporciona datos específicos con años y cifras exactas
 4. Compara diferentes períodos históricos cuando sea relevante
@@ -463,7 +463,7 @@ Para obtener análisis específicos, puedes preguntar sobre:
 - **Finanzas públicas y deuda**
 - **Sector externo y balanza comercial**
 
-*Datos disponibles: 1980-2030 | Fuente: FMI World Economic Outlook*"""
+*Datos disponibles: 1980-2030, los datos de 2024 a 2030 son previsiones | Fuente: FMI World Economic Outlook*"""
         
         # Análisis básico con datos completos
         indicator = context_data[0]
@@ -701,7 +701,7 @@ def main():
     st.markdown("""
     <div class="main-header">
         <h1>🇪🇨 Ecuador Economic Data Assistant</h1>
-        <p>Plataforma de análisis macroeconómico con datos oficiales del FMI | Powered by Claude AI</p>
+        <p>Plataforma de análisis macroeconómico con datos oficiales del Fondo Monetario Internacional AI</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -820,7 +820,7 @@ def main():
     # Sección de chat con IA (ancho completo)
     st.markdown('<div class="chat-section">', unsafe_allow_html=True)
     st.markdown("## 🤖 Consultas al Asistente Económico")
-    st.markdown("*Pregunta sobre cualquier aspecto de la economía ecuatoriana. Tengo acceso a 45 años de datos históricos (1980-2030).*")
+    st.markdown("*Pregunta sobre cualquier aspecto de la economía ecuatoriana. Tengo acceso a 50 años de datos históricos (1980-2030), los datos de 2024 a 2030 son previsiones.*")
     
     # Chat interface
     if "messages" not in st.session_state:
@@ -854,8 +854,8 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #666; font-size: 0.9rem;">
-        <p><strong>Ecuador Economic Data Assistant</strong> | FMI World Economic Outlook Database | Powered by Claude AI</p>
-        <p>Datos históricos completos: 1980-2030 | Última actualización: Octubre 2024</p>
+        <p><strong>Ecuador Economic Data Assistant</strong> | FMI World Economic Outlook Database </p>
+        <p>Datos históricos completos: 1980-2030, los datos de 2024 a 2030 son previsiones | Última actualización: 22 de abril de 2025</p>
     </div>
     """, unsafe_allow_html=True)
 
